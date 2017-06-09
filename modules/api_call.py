@@ -1,30 +1,50 @@
-'''
-Doc string bitches
-'''
+import os
+from StringIO import StringIO
+
 import requests
-import xml.etree.ElementTree as ET
+
+from lxml import etree
+import urllib2
 
 class ApiCall(object):
     """
-    Docstring
+    The ApiCall class is a generic wrapper for making calls to the Veracode API
     """
 
-    def __init__(self, endpoint, request_parameters, auth_tokens):
+    def __init__(self, endpoint, request_parameters, xml_schema_url):
+        """
+
+        :param endpoint: the API endpoint to be called
+        :param request_parameters: request specific parameters for the API endpoint defined by parameter endpoint
+        :param xml_schema_url: the XSD URL for the endpoint request this instantiation will be retrieving
+        """
+
         self.request_parameters = request_parameters
-        self.auth_tokens = auth_tokens
+        self.auth_tokens = (
+            os.environ['veracodeapiuser'],
+            os.environ['veracodeapipass2']
+        )
         self.endpoint = endpoint
+        # self.parser = etree.XMLParser(ns_clean=True)
+        self.schema = etree.XMLSchema(
+                        etree.fromstring(urllib2.urlopen(xml_schema_url).read()))
 
     def call(self):
         """
-        Docstring
+        the call method initiates the API call and returns an XML object from the validated response
         """
         return self.response_to_xml(requests.get(self.endpoint,
                                                  self.request_parameters,
                                                  auth=(self.auth_tokens[0], self.auth_tokens[1])))
 
-    def call_without_params(self):
-        return self.response_to_xml(requests.get(self.endpoint, auth=(self.auth_tokens[0], self.auth_tokens[1])))
-
     def response_to_xml(self, response):
+        """
+        The response_to_xml method simply validates the incoming response data, if it validates then we will pass
+        the XML response back to the caller.
+        :param response: the API call response that we're processing
+        :return: a lxml object for further processing
+        """
         if response and response.status_code is 200:
-            return ET.fromstring(response.content)
+            data = etree.parse(StringIO(response.content))
+            if(self.schema.validate(data)):
+                return data
